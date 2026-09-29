@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+.venv*
+venv/
+
+# Build/artifacts
+recordings/
+*.diarized.json
+*.srt
+*.wav
+
+# Env keys
+.env
+HF_TOKEN
+
+# Editor/OS
+.vscode/
+.DS_Store
