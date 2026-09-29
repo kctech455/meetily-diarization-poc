@@ -12,8 +12,4 @@ recordings/
 
 # Env keys
 .env
-HF_TOKEN
-
-# Editor/OS
-.vscode/
-.DS_Store
+HF_TOKEN*
