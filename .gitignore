@@ -10,8 +10,9 @@ recordings/
 *.srt
 *.wav
 
-# Env keys
+# Env keys / per-machine secrets
 .env
 HF_TOKEN*
+settings.json
 .venv311/
 .venv/

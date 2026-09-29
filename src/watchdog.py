@@ -54,13 +54,16 @@ def _write_json(path: Path, result: dict) -> None:
 def main():
     ap = argparse.ArgumentParser(description="Diarization watchdog service")
     ap.add_argument("--watch", required=True, help="folder to watch")
-    ap.add_argument("--token", default=os.getenv("HF_TOKEN"))
+    ap.add_argument("--token", default=None, help="HF token (optional; falls back to env/settings/prompt)")
     ap.add_argument("--device", default="cpu", choices=["cpu", "cuda", "mps"])
     ap.add_argument("--out")
     args = ap.parse_args()
-    if not args.token:
-        print("ERROR: HF_TOKEN required"); return 1
-    run_forever(Path(args.watch), args.token, args.device,
+
+    from .settings import ensure_token
+    token = ensure_token(cli_value=args.token,
+                         prompt_message="Enter your HuggingFace token for pyannote models:")
+
+    run_forever(Path(args.watch), token, args.device,
                 out_dir=Path(args.out) if args.out else None)
 
 

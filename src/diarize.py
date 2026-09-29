@@ -70,17 +70,17 @@ def _srt_time(sec: float) -> str:
 def main():
     ap = argparse.ArgumentParser(description="Diarize an audio file (WhisperX + pyannote)")
     ap.add_argument("--audio", required=True)
-    ap.add_argument("--token", default=os.getenv("HF_TOKEN"))
+    ap.add_argument("--token", default=None, help="HF token (optional; falls back to env/settings/prompt)")
     ap.add_argument("--device", default="cpu", choices=["cpu", "cuda", "mps"])
     ap.add_argument("--batch-size", type=int, default=16)
     ap.add_argument("--out")
     args = ap.parse_args()
 
-    if not args.token:
-        print("ERROR: HF_TOKEN required (pyannote models are gated). Set env var or pass --token")
-        return 1
+    from .settings import ensure_token
+    token = ensure_token(cli_value=args.token,
+                         prompt_message="Enter your HuggingFace token for pyannote models:")
 
-    result = diarize(args.audio, args.token, args.device, args.batch_size)
+    result = diarize(args.audio, token, args.device, args.batch_size)
     out_path = args.out or str(Path(args.audio).with_suffix(".diarized.json"))
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
