@@ -13,3 +13,5 @@ recordings/
 # Env keys
 .env
 HF_TOKEN*
+.venv311/
+.venv/
