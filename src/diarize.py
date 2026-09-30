@@ -8,16 +8,23 @@ import os
 from pathlib import Path
 
 def _load_pipeline():
-    """Lazy import whisperx + pyannote — only load when running (keeps CLI snappy)."""
+    """Lazy import whisperx — only load when running (keeps CLI snappy)."""
     global whisperx
-    from pyannote.audio import Pipeline
     import whisperx
-    return whisperx, Pipeline
+    return whisperx
 
 
-def diarize(audio_path: str, hf_token: str, device: str = "cpu", batch_size: int = 16) -> dict:
-    """Transcribe + diarize an audio file; return labeled segments dict."""
-    whisperx, Pipeline = _load_pipeline()
+def diarize(audio_path: str, hf_token: str, device: str = "cpu", batch_size: int = 16,
+            num_speakers: int | None = None,
+            min_speakers: int | None = None,
+            max_speakers: int | None = None) -> dict:
+    """Transcribe + diarize an audio file; return labeled segments dict.
+
+    num_speakers / min_speakers / max_speakers are optional hints passed to pyannote.
+    pyannote's auto speaker-count under-segments very short clips (e.g. a 20s test wav);
+    passing num_speakers helps on known-N-speaker inputs.
+    """
+    whisperx = _load_pipeline()
 
     # 1. Transcribe + align with WhisperX
     model = whisperx.load_model("small", device=device,
@@ -29,13 +36,19 @@ def diarize(audio_path: str, hf_token: str, device: str = "cpu", batch_size: int
     result = whisperx.align(result["segments"], model_a, metadata,
                             audio, device, return_char_alignments=False)
 
-    # 2. Diarize with pyannote
-    pipeline = Pipeline.from_pretrained(
-        "pyannote/speaker-diarization-3.1", token=hf_token)
-    diarization = pipeline(str(audio_path))
+    # 2. Diarize with pyannote via whisperx's DiarizationPipeline (whisperx 3.8.6 API).
+    # It handles the waveform-dict formatting internally (no torchcodec dependency) and
+    # returns a pandas DataFrame of {start, end, speaker} segments.
+    from whisperx.diarize import DiarizationPipeline, assign_word_speakers
+    diarize_pipeline = DiarizationPipeline(
+        model_name="pyannote/speaker-diarization-3.1",
+        token=hf_token, device=device)
+    diarize_df = diarize_pipeline(
+        audio, num_speakers=num_speakers,
+        min_speakers=min_speakers, max_speakers=max_speakers)
 
-    # 3. Merge — assign speaker labels to word-level segments
-    result = whisperx.assign_speaker_labels(result["segments"], diarization)
+    # 3. Merge — assign speaker labels to segment-level (and word-level) transcript
+    result = assign_word_speakers(diarize_df, result)
 
     out = {
         "language": result.get("language", "en"),
@@ -73,6 +86,10 @@ def main():
     ap.add_argument("--token", default=None, help="HF token (optional; falls back to env/settings/prompt)")
     ap.add_argument("--device", default="cpu", choices=["cpu", "cuda", "mps"])
     ap.add_argument("--batch-size", type=int, default=16)
+    ap.add_argument("--num-speakers", type=int, default=None,
+                    help="exact speaker count hint for pyannote (helps short clips)")
+    ap.add_argument("--min-speakers", type=int, default=None)
+    ap.add_argument("--max-speakers", type=int, default=None)
     ap.add_argument("--out")
     args = ap.parse_args()
 
@@ -83,7 +100,10 @@ def main():
     token = ensure_token(cli_value=args.token,
                          prompt_message="Enter your HuggingFace token for pyannote models:")
 
-    result = diarize(args.audio, token, args.device, args.batch_size)
+    result = diarize(args.audio, token, args.device, args.batch_size,
+                     num_speakers=args.num_speakers,
+                     min_speakers=args.min_speakers,
+                     max_speakers=args.max_speakers)
     out_path = args.out or str(Path(args.audio).with_suffix(".diarized.json"))
     Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     with open(out_path, "w") as f:
