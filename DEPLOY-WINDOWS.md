@@ -215,16 +215,23 @@ python -c "from src.diarize import diarize; from src.settings import resolve_tok
 
 ## 8. HUGGINGFACE TOKEN (THE GATED-MODEL BLOCKER)
 
-The pyannote diarization model `pyannote/speaker-diarization-3.1` is **gated** — you must:
+The pyannote diarization model `pyannote/speaker-diarization-3.1` is **gated** — you must
+accept the license for **THREE** repos (the third is a hidden requirement that the model
+card does NOT mention; missing it gives a confusing 403):
 
 1. Sign in to https://huggingface.co
-2. Go to `https://huggingface.co/pyannote/speaker-diarization-3.1`
-3. Click **"Agree and access repository"** (accept the license)
-4. Also accept the two dependency models it needs:
-   - `https://huggingface.co/pyannote/segmentation-3.0`
-   - `https://huggingface.co/pyannote/segment-anything-3.0`  [if listed as a dependency]
-5. Create an **Access Token** (Read) at https://huggingface.co/settings/tokens
+2. On EACH of these pages, click **"Agree and access repository"** (accept the license):
+   - `https://huggingface.co/pyannote/speaker-diarization-3.1`  (main pipeline)
+   - `https://huggingface.co/pyannote/segmentation-3.0`          (segmentation)
+   - `https://huggingface.co/pyannote/speaker-diarization-community-1`  (⚠️ REQUIRED but
+     **NOT listed on the model card** — a known trap; the 403 error it causes gives no hint)
+3. Create an **Access Token** (Read) at https://huggingface.co/settings/tokens
    — copy the `hf_...` string.
+
+> If you get `GatedRepoError: 403 ... "you are not in the authorized list"` for
+> `speaker-diarization-community-1` even after accepting the other two — that's the hidden
+> third repo. Accept its license (step 2, third bullet) and retry. This is a known pyannote
+> 3.1 requirement the docs omit.
 
 ### Store it (do NOT hardcode in code or commit):
 ```powershell
@@ -269,7 +276,7 @@ Common failures (and fixes):
 | `torch.cuda.is_available()` False | CPU torch wheel | reinstall torch with cu128/cu124 index (§7) |
 | `WinError 126` c10.dll | VC++ redist missing | install §4, new shell |
 | `WinError 2` ffmpeg | ffmpeg not on PATH | do §5, new shell |
-| `GatedRepoError: 401` fetching pyannote model | token missing/not licensed | do §8 fully |
+| `GatedRepoError: 401/403` fetching pyannote model | token missing OR a gated dep not accepted | do §8 fully (incl. the hidden `speaker-diarization-community-1` repo) |
 | `ImportError: attempted relative import` | ran via wrong python/path | run from project root, use `.venv311\Scripts\python.exe` |
 | Out of memory / CUDA OOM | 8GB over 20min clip | add `--batch-size 8` (whisperx batching) |
 
@@ -338,7 +345,7 @@ This sidecar is the missing diarization layer for the Meetily fork. To wire it i
 |---|---|---|
 | `WinError 126` / c10.dll | VC++ redist missing | §4 |
 | `[WinError 2] The system cannot find the file` | ffmpeg missing | §5 |
-| `GatedRepoError: 401` | HF token missing or license not accepted | §8 |
+| `GatedRepoError: 401/403` | HF token missing OR a gated dep (`speaker-diarization-community-1`) not accepted | §8 |
 | `ImportError: attempted relative import` | wrong python / not from root | use `.venv311\Scripts\python.exe` from project root |
 | `torch.cuda.is_available()` False | CPU wheel | §7 CUDA torch reinstall |
 | `FileNotFoundError: ffmpeg` at `imageio_ffmpeg` path | bundled exe named different | copy to `ffmpeg.exe` (§5) |

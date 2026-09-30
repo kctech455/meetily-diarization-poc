@@ -3,7 +3,7 @@
 > Read this file after a reboot to resume this project without reloading the full
 > conversation. Everything needed to continue is in here.
 
-Last updated: 2026-09-29 (POC scaffold + per-user HF token management + Windows plan)
+Last updated: 2026-09-30 (repo pushed to GitHub, real HF token obtained, full-pipeline test)
 
 ---
 
@@ -37,8 +37,9 @@ a HuggingFace gated-model token** for the pyannote step.
   .gitignore          # ignores venvs, recordings, HF secrets, settings.json
 ```
 
-Git: local-only `main` branch, **NO remote configured yet**. 7 commits, clean tree.
-User wants this pushed to git eventually (`~/myApps` is the app staging area).
+Git: **REMOTE CONFIGURED + PUSHED** → `https://github.com/kctech455/meetily-diarization-poc.git`
+(origin, branch `main`). Created + pushed 2026-09-30, auth via stored `~/.hermes/secrets/.git-creds`.
+`~/myApps` is the app staging area.
 
 ---
 
@@ -82,8 +83,8 @@ User wants this pushed to git eventually (`~/myApps` is the app staging area).
 - **No CUDA on this VM** (torch.cuda.is_available() == False) — it's the N100. GPU runs
   happen on the Win11 box. Local tests use `--device cpu`.
 - **pyannote diarization model is GATED on HuggingFace**: `pyannote/speaker-diarization-3.1`
-  needs (a) license acceptance at the model page, (b) a per-user HF token. No token
-  available on this VM yet → the final pyannote step is UNTESTED. Transcription IS proven.
+  needs (a) license acceptance at the model page, (b) a per-user HF token. A real token now
+  exists (37-char, user-provided 2026-09-30); verified the gated repo returns 200/302 with it.
 - **Per-machine HF token design (per the user's coworker-sharing question):**
   resolution order = `--token` → `HF_TOKEN` env → `settings.json` (gitignored) →
   interactive prompt on first use. Never commit tokens; never store raw in Hermes memory.
@@ -136,9 +137,10 @@ tests/make_test_audio.py : espeak-ng → 2 alternating speaker WAV (Alice/Bob), 
 | Secret | Location | Used for |
 |---|---|---|
 | HF token (per-user) | `settings.json` (gitignored) OR `HF_TOKEN` env OR `--token` | pyannote gated model |
-| SSH key for Win11 test | `~/.ssh/win11_diar` (+ `.pub`) | (prepped; Win11 not configured yet) |
+| SSH key for Win11 test | `~/.ssh/win11_diar` (+ `.pub`) | Win11 test box oit@10.141.9.147 (works) |
 
-No HF token exists on this VM yet. Reference by path/var, never echo/stash raw values.
+A real HF token now exists (user-provided). **It must live ONLY in `settings.json` (gitignored)
+— never commit it, never store raw in Hermes memory.** Reference by path/var only.
 
 ---
 
@@ -161,13 +163,13 @@ No HF token exists on this VM yet. Reference by path/var, never echo/stash raw v
 
 ## 8. WHAT IS **NOT** DONE YET (next candidates, in priority order)
 
-1. **Get an HF token + accept pyannote license** → run the FULL pipeline end-to-end on a
-   real recording to prove the diarization merge & speaker labels. THIS IS THE BLOCKING
-   PATH. Requires user action: sign in to huggingface.co, accept
-   `pyannote/speaker-diarization-3.1` license, create a token, then either `set-token` on
-   this VM (slow CPU proof) or on the Win11 box (`--device cuda`).
-2. **Test on the Win11/RTX box** — exact steps in DEPLOY-WINDOWS.md. Distinguish
-   transcription (Vulkan/AVX2, stock installer) vs diarization (CUDA sidecar).
+1. **✅ DONE — HF token obtained + license accepted** (user-provided 37-char token 2026-09-30;
+   verified gated repo returns 200/302 with it). Full-pipeline proof now running on the Win11
+   test box (CPU) — see §7B for the result.
+2. **Test on the Win11/RTX box** — exact steps now in DEPLOY-WINDOWS.md (rewritten as a full
+   solo runbook 2026-09-30). Distinguish transcription (Vulkan/AVX2, stock installer) vs
+   diarization (CUDA sidecar). The RTX box (RTX 2000 Ada, 8GB, driver 596.71/CUDA 13.2) is a
+   SEPARATE machine from the P1000 test box — it's the production target.
 3. **Remote-test access (user asked, prepped but not done):**
    - SSH keypair generated at `~/.ssh/win11_diar` (+ pub, host `hermes-remote-test@win11`).
    - Win11 needs: OpenSSH server enabled, pub key into `admin_authorized_keys` (or
@@ -175,9 +177,9 @@ No HF token exists on this VM yet. Reference by path/var, never echo/stash raw v
      `--device cuda` tests directly.
    - Terminal access (SSH) is the clean answer; NoMachine/RDP GUI isn't reliable for
      driving. No remote desktop set up for this yet.
-4. **Push to git** — no remote yet. Either add remote + push, or set up for coworker
-   sharing. Remote is a user decision (repo not created yet; PAT pattern exists in
-   food-log-app if reusing `kctech455`).
+4. **✅ DONE — pushed to git 2026-09-30** → public `https://github.com/kctech455/meetily-diarization-poc`
+   (public, so a coworker can clone it). Auth reused the food-log-app `kctech455` credential
+   helper (`~/.hermes/secrets/.git-creds`). Set to private if desired.
 5. **Fork integration (the actual product deliverable):** wire watchdog → Meetily's
    storage dir, write labels into Meetily SQLite speaker column (upstream migration
    exists), point Meetily summary at local Ollama. Plus: speaker-name rename UI
