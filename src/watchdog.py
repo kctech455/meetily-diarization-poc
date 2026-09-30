@@ -59,7 +59,10 @@ def main():
     ap.add_argument("--out")
     args = ap.parse_args()
 
-    from .settings import ensure_token
+    try:
+        from .settings import ensure_token  # package run
+    except ImportError:
+        from settings import ensure_token  # script run
     token = ensure_token(cli_value=args.token,
                          prompt_message="Enter your HuggingFace token for pyannote models:")
 

@@ -187,6 +187,51 @@ No HF token exists on this VM yet. Reference by path/var, never echo/stash raw v
 
 ---
 
+## 8B. WIN11 SETUP STATE (verified 2026-09-30 via SSH as oit@10.141.9.147)
+
+- SSH to Win11 works: `ssh oit@10.141.9.147` from this VM (key auth, BatchMode=yes).
+- **Reality check: the GPU is a Quadro P1000 (Pascal, 4GB), NOT an RTX.** Driver 397.93
+  (CUDA 10.x-era) → modern torch CUDA (cu12x/cu128) CANNOT run on it without a
+  driver+hardware upgrade. The sidecar works on CPU here (`--device cpu`). The handoff's
+  "RTX/CUDA pays off" assumption does NOT hold on THIS box. If GPU diarization matters,
+  either update drivers (P1000 still only gets old CUDA) or use a real RTX machine.
+- **winget is BROKEN on this box** (crashes with 0xC0000005 access violation on install).
+  Do NOT use winget for installs. Use direct downloads/inno/static binaries instead.
+- **Python 3.11.9 installed** at `C:\Users\OIT\AppData\Local\Programs\Python\Python311\python.exe`
+  (official installer, per-user). `py -3.11` works.
+- **Git 2.46.2** installed as portable MinGit at `C:\Program Files\Git\cmd\git.exe`.
+  HAD to delete a self-referential `include path = C:/Program Files/Git/etc/gitconfig`
+  line inside `C:\Program Files\Git\etc\gitconfig` (circular include error). Fixed.
+- **Microsoft Visual C++ Redistributable (x64, 2015-2022) was REQUIRED** — torch fails
+  with WinError 126 (`c10.dll` not found) and ctranslate2 fails to load without it.
+  Installed from `https://aka.ms/vs/17/release/vc_redist.x64.exe`.
+- **ffmpeg required**: whisperx's `load_audio` shells out to `ffmpeg` on PATH → WinError 2.
+  `pip install imageio-ffmpeg` bundles a static ffmpeg at
+  `.venv311\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe` — but
+  whisperx looks for `ffmpeg.exe`, so a COPY named `ffmpeg.exe` must exist in that dir
+  (created). Prepend that `binaries\` dir to PATH before running.
+- **`torchcodec` missing / libtorchcodec load warning is NON-FATAL** — pyannote's audio
+  IO warns it can't use built-in decoding, but whisperx uses its own ffmpeg path. Ignore.
+- Project code deployed to `C:\Users\OIT\meetily-diarization-poc\` (venv `.venv311`,
+  versions match this VM: torch 2.8.0+cpu, whisperx 3.8.6, pyannote.audio 4.0.7).
+
+### VERIFIED WORKING ON WIN11 (all exit 0)
+- token manager: `set-token hf_TEST12345` → `show` (masked) → `clear`  ✓
+- full transcription: whisperx `tiny`, CPU, sample.wav → `[0.0->20.1]` full Alice/Bob
+  transcript, language `en` ✓
+- src package imports (diarize/settings/watchdog) ✓, py_compile ✓
+- diarize.py CLI now runs through token resolution → raises the EXPECTED gated-model
+  guidance (blocker is the user's HF token + pyannote license, exactly the handoff's §8.1)
+
+### CODE FIX APPLIED (bug found during Win11 test)
+`src/diarize.py` and `src/watchdog.py`: `from .settings import ensure_token` inside
+`main()` breaks when run as a SCRIPT (`python src/diarize.py`) with "ImportError: attempted
+relative import with no known parent package". Fixed with try/except fallback to
+`from settings import ensure_token` (same pattern watchdog already uses for `from .diarize`).
+DO NOT regress to bare `from .settings import`.
+
+---
+
 ## 9. GOTCHAS / OPERATIONAL NOTES
 
 - Hermes model for this session: DeepSeek-V4-Flash0731 via myollama (was gemma4). Self-ID
@@ -230,5 +275,4 @@ action items only). Forking Meetily is the chosen path (closed-source AnythingLL
 be forked). The project lives under `/home/kc/myApps/` and is destined for git.
 
 ---
-
 # END OF HANDOFF.md
