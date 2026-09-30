@@ -144,6 +144,34 @@ A real HF token now exists (user-provided). **It must live ONLY in `settings.jso
 
 ---
 
+## 7B. FULL-PIPELINE PROOF (2026-09-30 — THE MILESTONE)
+
+The complete diarization pipeline now runs end-to-end on the Win11 test box (CPU):
+`transcribe → align → diarize (pyannote 3.1) → merge speakers → JSON/SRT`. **exit 0.**
+
+What had to be fixed to get here (all committed):
+1. **whisperx 3.8.6 API changed** — `assign_speaker_labels` no longer exists (that was an
+   old-whisperx name). 3.8.6 uses `whisperx.diarize.DiarizationPipeline` +
+   `assign_word_speakers(diarize_df, result)` which returns a pandas DataFrame. diarize.py
+   was rewritten against this API.
+2. **torchcodec not needed** — pyannote's `pipeline(str(path))` fails with
+   "torchcodec is not available. Cannot read audio file" if torchcodec's FFmpeg DLLs are
+   missing. The fix: use whisperx's `DiarizationPipeline` (it formats audio as a waveform
+   dict internally), which sidesteps torchcodec entirely. Works on any machine.
+3. **waveform shape** — must be `(channel, time)` = `(1, n)`, not `(n,)`.
+4. **Added `--num-speakers` / `--min-speakers` / `--max-speakers`** CLI hints passed to
+   pyannote (new capability). pyannote's AUTO speaker-count under-segments short/synthetic
+   clips (20s espeak wav → 1 speaker); `--num-speakers 2` forces the split.
+
+### LIMITATION (honest — not a code bug)
+**espeak-ng synthetic test audio is a KNOWN hard case for diarization**: all espeak voices
+share one vocal-tract model, so even 2 different-pitch voices can collapse to 1 speaker on
+auto-count. The pipeline is proven (it finds 2 clusters with `--num-speakers 2` on a 44s
+2-voice clip), but accurate speaker separation must be validated on a REAL human recording.
+`tests/gen_real_diar_test.py` makes a 44.8s 2-voice (different pitch/voice) test wav.
+
+---
+
 ## 7. VERIFIED STATE (the proof so far)
 
 - `requirements.txt` deps install clean on **Python 3.11** (`.venv311`):

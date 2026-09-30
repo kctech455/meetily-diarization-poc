@@ -283,6 +283,19 @@ Common failures (and fixes):
 > `--device cuda` uses `compute_type="float16"` (diarize.py picks this automatically).
 > `--device cpu` uses int8 and is much slower — RTX is the intended path.
 
+> **Speaker-count hints** (all optional): pyannote's AUTOMATIC speaker-counting can be
+> conservative on short clips (e.g. label everyone as one speaker on a <30s test wav). For
+> meetings where you know the speaker count, pass a hint:
+> ```powershell
+> python src\diarize.py --audio meeting.mp3 --device cuda --num-speakers 2
+> python src\diarize.py --audio meeting.mp3 --device cuda --min-speakers 2 --max-speakers 5
+> ```
+> On real human recordings (minutes long) auto-detection generally works; use hints only
+> when you know the count or get an obvious under-segmentation.
+> **Test-data caveat:** espeak-ng synthesized test audio (both speakers same TTS vocal tract)
+> is a KNOWN hard case for diarization — even with 2 distinct-esque voices, both may collapse
+> to one speaker. Don't judge the pipeline on espeak audio; judge it on a real recording.
+
 ---
 
 ## 11. RUN AS A WATCHDOG SERVICE (the production mode)
