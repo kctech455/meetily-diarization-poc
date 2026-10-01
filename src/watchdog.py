@@ -17,13 +17,22 @@ except ImportError:
 
 
 def run_forever(watch_dir: Path, token: str, device: str, poll_s: float = 5.0,
-                out_dir: Path | None = None):
+                out_dir: Path | None = None, num_speakers: int | None = None,
+                min_speakers: int | None = None, max_speakers: int | None = None):
     watch_dir = watch_dir.resolve()
     out_dir = out_dir or watch_dir / "diarized"
     out_dir.mkdir(parents=True, exist_ok=True)
-    print(f"[watchdog] watching {watch_dir} -> {out_dir} ({device})", flush=True)
+    hint = (f", num_speakers={num_speakers}" if num_speakers is not None
+            else f", min={min_speakers}, max={max_speakers}" if (min_speakers or max_speakers) else "")
+    print(f"[watchdog] watching {watch_dir} -> {out_dir} ({device}{hint})", flush=True)
 
+    # On first pass, ignore pre-existing files (only process files that ARRIVE while watching)
     seen: set[str] = set()
+    for f in watch_dir.iterdir():
+        if f.is_file() and f.suffix.lower() in {".wav", ".m4a", ".mp3", ".mp4", ".webm"}:
+            seen.add(f"{f.name}:{f.stat().st_size}:{f.stat().st_mtime:.0f}")
+    print(f"[watchdog] ignoring {len(seen)} pre-existing recording(s); will process new arrivals", flush=True)
+
     while True:
         for f in watch_dir.iterdir():
             if f.is_file() and f.suffix.lower() in {".wav", ".m4a", ".mp3", ".mp4", ".webm"}:
@@ -31,15 +40,26 @@ def run_forever(watch_dir: Path, token: str, device: str, poll_s: float = 5.0,
                 if key in seen:
                     continue
                 seen.add(key)
-                # skip files still being written (size changed recently)
-                if time.time() - f.stat().st_mtime < 2:
+                # skip files still being written (size changed recently / still growing)
+                try:
+                    size1, size2 = f.stat().st_size, -1
+                    time.sleep(0.5)
+                    size2 = f.stat().st_size
+                    if size2 != size1:
+                        continue  # still growing; wait for next pass
+                    if time.time() - f.stat().st_mtime < 2:
+                        continue
+                except OSError:
                     continue
                 print(f"[watchdog] diarizing {f.name}", flush=True)
                 try:
-                    result = diarize(str(f), token, device)
+                    result = diarize(str(f), token, device,
+                                     num_speakers=num_speakers,
+                                     min_speakers=min_speakers,
+                                     max_speakers=max_speakers)
                     out = out_dir / f"{f.stem}.json"
                     _write_json(out, result)
-                    print(f"[watchdog] wrote {out}", flush=True)
+                    print(f"[watchdog] wrote {out} (speakers: {result.get('speakers')})", flush=True)
                 except Exception as e:  # noqa: BLE001
                     print(f"[watchdog] FAILED {f.name}: {e}", flush=True)
         time.sleep(poll_s)
@@ -56,6 +76,9 @@ def main():
     ap.add_argument("--watch", required=True, help="folder to watch")
     ap.add_argument("--token", default=None, help="HF token (optional; falls back to env/settings/prompt)")
     ap.add_argument("--device", default="cpu", choices=["cpu", "cuda", "mps"])
+    ap.add_argument("--num-speakers", type=int, default=None)
+    ap.add_argument("--min-speakers", type=int, default=None)
+    ap.add_argument("--max-speakers", type=int, default=None)
     ap.add_argument("--out")
     args = ap.parse_args()
 
@@ -67,7 +90,10 @@ def main():
                          prompt_message="Enter your HuggingFace token for pyannote models:")
 
     run_forever(Path(args.watch), token, args.device,
-                out_dir=Path(args.out) if args.out else None)
+                out_dir=Path(args.out) if args.out else None,
+                num_speakers=args.num_speakers,
+                min_speakers=args.min_speakers,
+                max_speakers=args.max_speakers)
 
 
 if __name__ == "__main__":
