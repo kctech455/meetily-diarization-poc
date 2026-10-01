@@ -208,6 +208,11 @@ yt-dlp as `recordings/anne_interview.wav`):
 1. **✅ DONE — HF token obtained + license accepted** (user-provided 37-char token 2026-09-30;
    verified gated repo returns 200/302 with it). Full-pipeline proof now running on the Win11
    test box (CPU) — see §7B for the result.
+   - **BUILD MACHINE NOTE (2026-10-01):** the Win11 test box (P1000) is now the primary build
+     machine for the meeting-helper fork too — Node 22 + pnpm + full MSVC/LLVM/cargo toolchain
+     are installed there, and `tauri build --no-bundle` works end-to-end (see meeting-helper
+     HANDOFF §6B). winget is fixed on the box (was `0xC0000005`; needs `--accept-source-agreements`).
+     The Proxmox VM (N100, no Rust toolchain) can no longer build the fork.
 2. **Test on the Win11/RTX box** — exact steps now in DEPLOY-WINDOWS.md (rewritten as a full
    solo runbook 2026-09-30). Distinguish transcription (Vulkan/AVX2, stock installer) vs
    diarization (CUDA sidecar). The RTX box (RTX 2000 Ada, 8GB, driver 596.71/CUDA 13.2) is a
