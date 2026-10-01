@@ -3,7 +3,9 @@
 > Read this file after a reboot to resume this project without reloading the full
 > conversation. Everything needed to continue is in here.
 
-Last updated: 2026-09-30 (repo pushed to GitHub, real HF token obtained, full-pipeline test)
+Last updated: 2026-09-30 EVENING (renamed to meeting-diarization-poc; fork meeting-helper created;
+real-audio validation SUCCESS; watchdog auto-diarize PROVEN on Win11; apply_speakers bridge added;
+GUI fork code staged. Fresh session: read §12 first.)
 
 ---
 
@@ -317,4 +319,117 @@ action items only). Forking Meetily is the chosen path (closed-source AnythingLL
 be forked). The project lives under `/home/kc/myApps/` and is destined for git.
 
 ---
+
+## 12. SESSION 2026-09-30 EVENING — MAJOR PROGRESS (read this BEFORE resuming)
+
+This session pushed the project from "pipeline proven, awaiting real-recording validation"
+to **"watchdog auto-diarize flow PROVEN end-to-end on Win11 + fork created + GUI code staged."**
+A **fresh session tomorrow (for the real Teams meeting test) should start here.**
+
+### 12.1 RENAMES + REPO STATE (all done, pushed)
+- **Sidecar repo renamed** (folder + GitHub): `meetily-diarization-poc` → **`meeting-diarization-poc`**.
+  - Local folder: `/home/kc/myApps/meeting-diarization-poc` (NOTE: HANDOFF §2/§3/§10 still say old name — the rename happened this session).
+  - GitHub: `https://github.com/kctech455/meeting-diarization-poc` (old URL auto-redirects).
+- **`meeting-helper` fork created** as a **TRUE GitHub fork** of `Zackriya-Solutions/meetily`
+  (NOT `meetily/meetily` — that 404s. Org is `Zackriya-Solutions`). Public.
+  - `https://github.com/kctech455/meeting-helper`  (fork:True, parent=Zackriya-Solutions/meetily)
+  - Local clone: `/home/kc/myApps/meeting-helper`, remotes `origin`(fork) + `upstream`(original main).
+  - The empty placeholder repo was deleted first, then a real fork, then renamed — clean fork linkage.
+
+### 12.2 PREMISE CONFIRMED (critical)
+Meetily community edition **STILL has ZERO real per-person diarization.** Grep across
+`.rs/.ts/.tsx/.toml` found no diarization implementation; README says speaker diarization
+is "planned for PRO" (marketing, not shipped). The fork genuinely fills the gap. ✅
+**Also:** the `speaker` column migration DOES exist upstream
+(`frontend/src-tauri/migrations/20251110000001_add_speaker_field.sql`) but its intent is
+**mic-vs-system audio source, NOT person labels** — it adds `speaker TEXT` but semantically
+"mic"/"system". For real per-person labels we'll add our own migration/semantic.
+
+### 12.3 REAL-RECORDING VALIDATION (SUCCESS — the quality gate)
+Downloaded a real 54s interview (Anne Hathaway + host) via yt-dlp → `recordings/anne_interview.wav`,
+ran the sidecar on the Win11 box:
+- **auto-count**: exit 0 but OVER-segments 54s clip into 4 clusters (Anne split into 3).
+- **`--num-speakers 2`**: **100% ACCURATE — all 21 segments correct.** Host=SPEAKER_00,
+  Anne=SPEAKER_01, zero misassignments.
+- **Operational rule:** use `--num-speakers` when count is known; auto-count is reliable on
+  long recordings (30-60min meetings) but over-clusters short clips. GREEN LIGHT for the fork.
+
+### 12.4 WATCHDOG AUTO-FLOW PROVEN END-TO-END ON WIN11 (the test tomorrow uses this)
+The `src/watchdog.py` folder-watch → auto-diarize → JSON flow is **verified working**:
+1. Drop a supported audio file (`wav/m4a/mp3/mp4/webm`) into the watch dir.
+2. Watchdog auto-diarizes it (ignores pre-existing files; only NEW arrivals; waits for
+   stable file size so it doesn't catch a still-writing file).
+3. Writes `<name>.json` to the `--out` dir with speakers + labeled segments.
+- **Verified:** dropped `meeting.wav` into a fresh inbox while watchdog ran → it diarized
+  and wrote `meeting.json` with `['SPEAKER_00','SPEAKER_01']`, 21 segments, correct labels.
+- **Key gotchas learned:**
+  - `Start-Process` from an SSH session does NOT survive the SSH disconnect (dies silently).
+  - The Windows **Task Scheduler** task DOES keep it alive — registered as `MeetingDiarizer`
+    (runs `watchdog.py --watch C:\Users\OIT\meetings_inbox --device cpu --num-speakers 2` at logon).
+  - Foreground run over SSH works and stays alive (it blocks on the loop) — good for testing.
+  - **Watchdog now supports** `--num-speakers/--min-speakers/--max-speakers` (added this session).
+
+### 12.5 NEW BRIDGE: `src/apply_speakers.py` (verified working)
+Turns `.diarized.json` into human-readable + editable outputs (pure stdlib, no Rust build):
+```
+python src/apply_speakers.py --json <name>.diarized.json
+  -> <name>.labeled.srt      (SRT with [SPEAKER_x] tags)
+  -> <name>.labeled.txt      ("[SPEAKER_x] text" lines)
+  -> <name>.speakers.json    (speaker-label -> name map; EDIT THIS to rename speakers)
+  Optional: --db <meetily.sqlite> [--meeting-id <id>]  # writes speaker into transcripts rows
+```
+- **Verified on Win11:** produced correct labeled .srt/.txt/.speakers.json, exit 0.
+- **How the user renames speakers without compiling the fork:** edit the `.speakers.json`
+  map (`{"SPEAKER_00": {"name": "Alice"}, ...}`) — labels stay, display name changes.
+
+### 12.6 FORK CODE STAGED (written, NOT yet compiled/verified)
+These are staged in `/home/kc/myApps/meeting-helper` — they need a Tauri build to verify,
+which is **not possible on the Win11 box yet** (no Rust toolchain). They are ready to drop
+into the next compile:
+- `frontend/src/types/index.ts`: added `speaker?: string` to `Transcript` + `TranscriptSegmentData`.
+- `frontend/src-tauri/src/api/api.rs`: added `speaker: Option<String>` to `TranscriptSegment`.
+- **NOT yet added:** a Tauri command to update a transcript's speaker (e.g.
+  `update_transcript_speaker` / `apply_diarized_labels`) — that was the in-progress step when
+  the session wrapped. Also the actual rename-input UI control in the transcript view.
+
+### 12.7 BLOCKERS / HONEST LIMITS (for the morning session)
+- **Full fork integration (GUI rename UI + Tauri command + compile) is UNVERIFIED** — needs
+  the Rust/Next.js build toolchain. The P1000 test box has no Rust toolchain. This is the one
+  piece that can't be proven without a real compile (a real RTX/Windows production box or
+  building on this VM with `pnpm`+`cargo`, which is heavy).
+- **This does NOT block tomorrow's Teams test** — the sidecar + watchdog + apply_speakers
+  bridge all work on the Win11 box right now. Test flow:
+  1. Record the Teams meeting (Meetily or any recorder → output a supported audio file).
+  2. Place the file into `C:\Users\OIT\meetings_inbox\` (the Task Scheduler watchdog watches it).
+  3. Watchdog auto-diarizes → `.json` appears in `C:\Users\OIT\meetings_inbox\diarized\`.
+  4. `cd C:\Users\OIT\meetily-diarization-poc && .venv311\Scripts\python.exe src\apply_speakers.py --json <diarized>.json`
+     → labeled .srt/.txt + editable .speakers.json.
+
+### 12.8 FORK LAYOUT / ARCHITECTURE NOTES (for continuing the fork)
+- Meetily DB is SQLite at `%APPDATA%\com...` (resolved via `app_handle.app_data_dir()` +
+  `.sqlite`); `manager.rs:new(tauri_db_path, backend_db_path)`.
+- `transcripts` table: `id, meeting_id, transcript, timestamp, summary, action_items,
+  key_points, audio_start_time, audio_end_time, duration, speaker` (speaker added by upstream
+  migration 20251110000001 but semantically mic/system; we override for person labels).
+- Rust `TranscriptSegment` (api.rs ~L180): `id, text, timestamp, audio_start_time,
+  audio_end_time, duration` → now +speaker.
+- Frontend types mirror it: `Transcript` (types/index.ts) → now +speaker.
+- To finish GUI: Tauri command `update_transcript_speaker(transcript_id, speaker)` +
+  a small inline rename control in `frontend/src/components/TranscriptView.tsx` /
+  `VirtualizedTranscriptView.tsx` (render as small editable badge before the text when
+  `segment.speaker` present). Then require `--features`/build to verify.
+
+### 12.9 NEXT STEPS (morning, in order)
+1. **(Gated on user) Real Teams meeting test** — record a real 2-3 person Teams meeting,
+   drop file into `C:\Users\OIT\meetings_inbox\`, confirm auto-diarize + labeled JSON.
+   Use `--num-speakers N` (N = expected attendees) if short clip; auto-count if long meeting.
+2. **Finish the fork GUI/command wiring** in `~/myApps/meeting-helper`:
+   add `update_transcript_speaker` Tauri command + rename UI + our own person-label migration;
+   then build with `pnpm`+`cargo` (on a machine with the toolchain) and verify.
+3. **Ollama summary hook** (optional): point fork summary at `localhost:11434`.
+4. **Docs**: this HANDOFF + DEPLOY-WINDOWS.md should get the rename + new apply_speakers step
+   folded in for the solo RTX user.
+
+---
+
 # END OF HANDOFF.md
